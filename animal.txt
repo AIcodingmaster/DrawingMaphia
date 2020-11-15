@@ -1,0 +1,7 @@
+dog
+cat
+snake
+monkey
+hamburger
+coffee
+twitch
