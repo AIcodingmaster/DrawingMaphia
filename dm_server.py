@@ -10,28 +10,54 @@ class Server:
         self.rooms=[]
     def make_room(self,room,c):
         rooms_lock.acquire()
+        room.code=room.get_code()
         self.rooms.append(room)
         rooms_lock.release()
         self.net.send(room.getPacket(),c)
         left_p_num=room.start_room(c,self.net)
         if left_p_num==0:
             rooms_lock.acquire()
+            Room.room_code[room.code]=True
             self.rooms.remove(room)
             rooms_lock.release()
-    def find_room(self,num,c):
+    def code_find_room(self,code,c):
+        print(code)
         for room in self.rooms:
-            if room.total_p_num==num and room.total_p_num>room.p_num and not room.start_flag:#num명 방이고 인원이 다 안찼으면
+            rooms_lock.acquire()
+            if str(room.code)==code.strip() and not room.start_flag and room.total_p_num>room.p_num:
                 player_code=room.add_player()
+                rooms_lock.release()
                 self.net.send(player_code,c)
                 self.net.send(room.getPacket(),c)
                 left_p_num=room.start_room(c,self.net)
                 if left_p_num==0:
                     rooms_lock.acquire()
+                    Room.room_code[room.code]=True
                     self.rooms.remove(room)
                     rooms_lock.release()
                 return
+            rooms_lock.release()
+        self.net.send(-1,c)
+        self.net.send(-1,c)
+    def find_room(self,num,c):
+        for room in self.rooms:
+            rooms_lock.acquire()
+            if room.total_p_num==num and room.total_p_num>room.p_num and not room.start_flag:#num명 방이고 인원이 다 안찼으면
+                player_code=room.add_player()
+                rooms_lock.release()
+                self.net.send(player_code,c)
+                self.net.send(room.getPacket(),c)
+                left_p_num=room.start_room(c,self.net)
+                if left_p_num==0:
+                    rooms_lock.acquire()
+                    Room.room_code[room.code]=True
+                    self.rooms.remove(room)
+                    rooms_lock.release()
+                return
+            rooms_lock.release()
         room=Room(num)
         rooms_lock.acquire()
+        room.code=room.get_code()
         self.rooms.append(room)
         rooms_lock.release()
         self.net.send(0,c)
@@ -39,6 +65,7 @@ class Server:
         left_p_num=room.start_room(c,self.net)
         if left_p_num==0:
             rooms_lock.acquire()
+            Room.room_code[room.code]=True
             self.rooms.remove(room)
             rooms_lock.release()
     def run(self):
@@ -64,5 +91,7 @@ class Server:
         elif data=="m8":
             room=Room(8)
             self.make_room(room,c)
+        else:
+            self.code_find_room(data,c)
 server=Server(addr)
 server.run()

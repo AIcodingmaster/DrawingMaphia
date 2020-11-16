@@ -4,8 +4,44 @@ import random
 from _thread import *
 from setting import *
 from functools import reduce
+import scene
 LISTEN_NUM=100
 ROOM_NUM=30
+class CodeBox:#방 code로 입장 or 투표할 때 쓰는 inputbox
+    def __init__(self, x, y, w, h,dm, text=''):
+        self.dm=dm
+        self.rect = pygame.Rect(x, y, w, h)
+        self.color = pygame.Color(255,255,255)
+        self.text = text
+        self.font=pygame.font.SysFont(FONT_NAME,15)
+        self.txt_surface = self.font.render(text, True, WHITE)
+
+    def handle_event(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_RETURN and self.text!='':
+                self.dm.net.send(self.text,self.dm.net.s)
+                player_code=self.dm.net.recv(self.dm.net.s)
+                room=self.dm.net.recv(self.dm.net.s)
+                if player_code!=-1:
+                    self.dm.changeScene(scene.Game(self.dm,room,player_code))
+                self.text = ''
+            elif event.key == pygame.K_BACKSPACE or event.key==271:
+                self.text = self.text[:-1]
+            else:
+                self.text += event.unicode
+            # Re-render the text.
+            self.txt_surface = self.font.render(self.text, True, WHITE)
+
+    def update(self):
+        # Resize the box if the text is too long.
+        width = max(200, self.txt_surface.get_width()+10)
+        self.rect.w = width
+
+    def draw(self):
+        # Blit the rect.
+        pygame.draw.rect(self.dm.screen, self.color, self.rect, 2)
+        # Blit the text.
+        self.dm.screen.blit(self.txt_surface, (self.rect.x+5, self.rect.y+5))
 class InputBox:#방 code로 입장 or 투표할 때 쓰는 inputbox
     def __init__(self, x, y, w, h,dm, text=''):
         self.dm=dm
@@ -29,7 +65,7 @@ class InputBox:#방 code로 입장 or 투표할 때 쓰는 inputbox
         if event.type == pygame.KEYDOWN:
             if self.active:
                 #print(event.key)
-                if event.key == pygame.K_RETURN:
+                if event.key == pygame.K_RETURN and self.text!='':
                     self.dm.scene.player.voting=self.text
                     self.text = ''
                     self.dm.scene.voted=True
@@ -98,7 +134,7 @@ class ChatBox:
         self.color = COLOR_ACTIVE if self.active else COLOR_INACTIVE
         if event.type == pygame.KEYDOWN:
             if self.active:
-                if event.key == pygame.K_RETURN:#엔터시
+                if event.key == pygame.K_RETURN and self.text!='':#엔터시
                     self.dm.scene.player.chat=self.text#플레이어의 chat을 갱신
                     self.text = ''#쓰는 상자 비우기
                 elif event.key == pygame.K_BACKSPACE:#백스페이스시
@@ -124,6 +160,7 @@ class ChatBox:
 
 class Canvas(pygame.sprite.Sprite):
     def __init__(self,dm,image,x=0,y=0):
+        super().__init__()
         self.rect=image.get_rect()
         self.rect.center=(x,y)
         self.image=image
@@ -154,9 +191,10 @@ class RoomPacket:
 class Room:
     room_code=[True for i in range(ROOM_NUM)]#room assign
     def __init__(self,total_p_num):
-        self.master=None
+        self.master=0#방장
         self.canvas_catched=None#잡은 사람 player_code가 들어감
-        self.code=self.get_code()
+        self.room_lock=allocate_lock()
+        self.code=None
         self.total_p_num=total_p_num#전체 인원수
         self.total_m_num=total_p_num//4#전체 마피아 수
         self.m_num=0#현재 마피아수
@@ -172,8 +210,6 @@ class Room:
         self.reset_flag=False#broadcasting 상황인지 = 방을 리셋하라 시작하라 message받았는지
         self.reseted=[False]*self.total_p_num#player가 브로드 캐스트를 해야 하는지 여부
         self.started=[False]*self.total_p_num
-        self.master=None#방장
-        self.room_lock=allocate_lock()
         self.start_flag=False#게임 시작 했는지 여부
         self.drawed=[False]*self.total_p_num
         self.voted=[False]*self.total_p_num
@@ -260,6 +296,8 @@ class Room:
         self.room_lock.release()
     def remove_player(self,player):
         self.room_lock.acquire()
+        if player.code in self.m_idx:
+            self.m_idx.remove(player.code)
         if self.canvas_catched==player.code:
             self.canvas_catched=None
         self.player_code[player.code]=True
@@ -268,16 +306,23 @@ class Room:
 
     def update(self,player_packet):
         self.room_lock.acquire()
+        if self.player_code[self.master]:#방장이 없다면
+            self.master=random.choice([idx for idx,x in enumerate(self.player_code) if not x])#master 랜덤으로 정함
+        if self.start_flag and len(self.m_idx)==0:#게임중 마피아가 없다면 시민 게임 승리
+            self.start_flag=False
+            self.victory=True#시민 승리
+            self.ending()
+            self.end_flag=True
+            self.voted=[False]*self.total_p_num
+            self.drawed=[False]*self.total_p_num
+            self.room_lock.release()
+            return
         self.players[player_packet.code]=player_packet#플레이어 패킷 갱신
         if player_packet.paper!=None and player_packet.canvas_catched:
             if len(player_packet.paper)>0:
                 #print(f'[put]player{player_packet.code} {player_packet.paper}')
                 self.paper+=player_packet.paper
         if self.voting:
-            if player_packet.voting!=None:
-                print(f'player{player_packet.code} voted \'{player_packet.voting}\'')
-                if player_packet.code in self.m_idx:
-                    print(f'self.word : {self.word}, word : {player_packet.voting}')
             if player_packet.voting is not None:
                 self.voted[player_packet.code]=True#투표 여부
                 self.vote_content[player_packet.code]=player_packet.voting#투표 내용 저장
@@ -289,18 +334,17 @@ class Room:
                     agree=True#마피아 한명이라도 걸리면 끝남.
                     for content in [self.vote_content[idx] for idx,x in enumerate(self.player_code) if (not x and idx not in self.m_idx)]:
                         agree*=str(content) in [str(i) for i in self.m_idx]#만장일치로 마피아를 찾는 변수
-                    if not self.end_flag:#투표 종료 후 아무도 종료 flag를 set하지 않았다면
-                        if (player_packet.code in self.m_idx and player_packet.voting==self.word):#마피아가 제시어를 맞추면
+                    if agree:#만장일치로 마피아를 찾았다면
+                        self.start_flag=False
+                        self.victory=True#시민 승리
+                    for idx in self.m_idx:
+                        if self.vote_content[idx].strip()==self.word:#마피아가 중 1명만 제시어를 맞추면
                             self.start_flag=False
                             self.victory=False#마피아 승리
-                            print('마피아 승리')
-                        elif agree:#만장일치로 마피아를 찾았다면
-                            self.start_flag=False
-                            self.victory=True#시민 승리
-                            print('시민 승리')
-                        if not self.start_flag:#게임 종료가 되었다면
-                            self.ending()
-                            self.end_flag=True
+                            break
+                    if not self.start_flag:#게임 종료가 되었다면
+                        self.ending()
+                        self.end_flag=True
                     self.voted=[False]*self.total_p_num
                     self.drawed=[False]*self.total_p_num
         if player_packet.chat!='':#채팅을 쳤다면
@@ -314,9 +358,6 @@ class Room:
                 break
             if player_packet.roomout_flag:#방 나가기 클릭시
                 self.remove_player(player_packet)#플레이어 제거
-                self.room_lock.acquire()
-                self.canvas_catched=None
-                self.room_lock.release()
                 return self.p_num#자신 나가고 나머지 인원 수 반환
             elif player_packet.canvas_catched:#캔버스 근처에서 잡는 시도
                 if (self.canvas_catched!=None and self.canvas_catched!=player_packet.code) or self.drawed[player_packet.code]:#잡은 사람이 있고 그게 자기가 아니면 or 자기가 그렸었다면
@@ -351,12 +392,12 @@ class Room:
                 self.room_lock.release()
             elif player_packet.start_room and not self.start_flag and not self.end_flag:#게임 시작을 눌렀으면
                 self.room_lock.acquire()
+                self.start_flag=True
                 self.paper=[]
                 l=[i for i in range(self.total_p_num) if not self.player_code[i]]#할당된 id code만 뽑음
                 self.m_idx=random.sample(l,self.total_m_num)#마피아 뽑기
                 self.word=self.getWord()
                 self.canvas_catched=None
-                self.start_flag=True
                 self.drawed=[False]*self.total_p_num#그릴 수 있는 권한 초기화
                 self.room_lock.release()
             self.update(player_packet)
@@ -368,11 +409,12 @@ class Room:
                 Room.room_code[idx]=False
                 return idx
         return -1
-    def release_code(self):
-        Room.room_code[self.code]=True
+
 class User(pygame.sprite.Sprite):
     def __init__(self,dm,player_code):
+        super().__init__()
         self.dm=dm
+        self.beforeFrame=0
         self.playerPacket=PlayerPacket()
         self.color=playerColor[player_code]
         self.dir=dir+self.color
@@ -390,6 +432,7 @@ class User(pygame.sprite.Sprite):
         [filenum for filenum in range(4)]))
     def modify(self,playerpacket):
         self.playerPacket=playerpacket
+        self.rect.center=playerpacket.center
     def draw(self):
         if self.playerPacket.state==1:
             self.dm.screen.blit(pygame.transform.flip(self.walkLRImages[self.playerPacket.frame],True,False),self.playerPacket.center)
@@ -402,8 +445,22 @@ class User(pygame.sprite.Sprite):
         elif self.playerPacket.state==0:
             self.dm.screen.blit(self.image,self.playerPacket.center)
         elif self.playerPacket.state==5:
+            if self.playerPacket.frame==0:
+                self.beforeFrame=0
+            elif self.playerPacket.frame==1:
+                self.beforeFrame+=1
+            if self.beforeFrame==1:
+                self.dm.scene.hitSound[random.randint(0,len(self.dm.scene.hitSound)-1)].play()
+                self.beforeFrame=0
             self.dm.screen.blit(self.hitImages[self.playerPacket.frame],self.playerPacket.center)
         elif self.playerPacket.state==6:
+            if self.playerPacket.frame==0:
+                self.beforeFrame=0
+            elif self.playerPacket.frame==1:
+                self.beforeFrame+=1
+            if self.beforeFrame==1:
+                self.dm.scene.hitSound[random.randint(0,len(self.dm.scene.hitSound)-1)].play()
+                self.beforeFrame=0
             self.dm.screen.blit(pygame.transform.flip(self.hitImages[self.playerPacket.frame],True,False),self.playerPacket.center)
 
 class PlayerPacket:
@@ -421,11 +478,11 @@ class PlayerPacket:
         self.reset_room=False#종이 초기화 flag
         self.start_room=False#게임 시작
         self.voting=None#false
-    def reset_player(self):#플레이어 위치, 상태등 다 초기화
-        pass
+
 
 class Player(pygame.sprite.Sprite):
     def __init__(self,dm,player_code,cursor_rect,canvas_rect):
+        super().__init__()
         self.code=player_code
         self.paper=set()
         self.roomout_flag=False#방 나가기 flag

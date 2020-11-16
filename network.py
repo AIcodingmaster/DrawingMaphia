@@ -1,5 +1,5 @@
 import socket
-from pickle import dumps, loads
+from _pickle import dumps,loads
 from sys import getsizeof
 from _thread import *
 from model import *
@@ -17,17 +17,17 @@ class Net():
         return self.s.accept()
     def recv(self,conn):
         data_b=b''
+        data=None
         while True:
             chunk=conn.recv(4096)
             if not chunk:
                 break
             data_b+=chunk
             try:
-                loads(data_b)
-                break
+                data=loads(data_b)
             except:
                 continue
-        data=loads(data_b)
+            break
         return data
     def send(self,data,conn):
         conn.sendall(dumps(data))

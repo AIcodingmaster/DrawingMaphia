@@ -4,6 +4,7 @@ from setting import *
 class  Main: 
     def __init__(self,DM): #변수, 게임 기본설정 초기화
         self.dm=DM
+        self.activeCF=False
         self.background=pygame.image.load(MAIN_BACKGROUND)
         self.background_rect=self.background.get_rect(left=0,top=0)
         self.font=pygame.font.SysFont(FONT_NAME,20)
@@ -20,9 +21,12 @@ class  Main:
         self.makeRoom8_rect=self.makeRoom8.get_rect(left=450,top=250)
         self.codeFindRoom= self.font.render('방 코드 참가',True,WHITE)
         self.codeFindRoom_rect=self.codeFindRoom.get_rect(left=450,top=290)
+        self.cffont= self.font.render('코드 입력:',True,WHITE)
+        self.cffont_rect=self.cffont.get_rect(left=120,top=280)
         pygame.mixer.music.load(MAIN_SOUND)
         self.clickSound=pygame.mixer.Sound(CLICK_SOUND)
         self.clickSound.set_volume(1.0)
+        self.codebox=CodeBox(WIDTH//2-80,HEIGHT-70,180,36,self.dm)
         pygame.mixer.music.set_volume(0.3)
         pygame.mixer.music.play()
     def stop(self):
@@ -75,8 +79,12 @@ class  Main:
                     self.dm.changeScene(Game(self.dm,room,0))
                     self.clickSound.play()
                 elif self.codeFindRoom_rect.collidepoint(event.pos):
-                    #코드로 방찾기 추가 필요
+                    self.activeCF=True
                     self.clickSound.play()
+                else:
+                    self.activeCF=False
+            if self.activeCF:
+                self.codebox.handle_event(event)
     def draw(self): #화면에 그려주는 함수
         self.dm.screen.blit(self.background,self.background_rect)
         self.dm.screen.blit(self.title,self.title_rect)
@@ -85,7 +93,9 @@ class  Main:
         self.dm.screen.blit(self.makeRoom4,self.makeRoom4_rect)
         self.dm.screen.blit(self.makeRoom8,self.makeRoom8_rect)
         self.dm.screen.blit(self.codeFindRoom,self.codeFindRoom_rect)
-
+        if self.activeCF:
+            self.dm.screen.blit(self.cffont,self.cffont_rect)
+            self.codebox.draw()
 class Game:
     def __init__(self,DM,room,player_code): #변수, 게임 기본설정 초기화
         self.mafia=False
@@ -93,7 +103,7 @@ class Game:
         self.room=room
         self.font=pygame.font.SysFont(FONT_NAME,10)
         self.fontItalic=pygame.font.SysFont(FONT_NAME,40,italic=True)
-        self.roomfont=self.font.render(f'코드 : {self.room.code}',True,BLACK)
+        self.roomfont=self.font.render(f'코드: {self.room.code}',True,BLACK)
         self.roomfont_rect=self.roomfont.get_rect(left=WIDTH-100,top=18)  
         self.word=''
         self.mafiafont=self.font.render(f'마피아',True,RED)
@@ -102,7 +112,9 @@ class Game:
         self.citizenfont_rect=self.citizenfont.get_rect(left=WIDTH//2-20,top=18)     
         self.wordfont=self.font.render(f'제시어 : {self.word}',True,BLACK)
         self.wordfont_rect=self.wordfont.get_rect(left=WIDTH//2-20,top=35)
-
+        self.pnumfont=self.font.render(f'{self.room.p_num}/{self.room.total_p_num}',True,BLACK)
+        self.pnumfont_rect=self.pnumfont.get_rect(left=WIDTH//2-100,top=18)
+        
         self.chatImage=pygame.image.load("./imgs/chat.png")
         self.chatImage_rect=self.chatImage.get_rect(left=18,top=18)
         self.cursor=pygame.image.load("./imgs/cursor.png")
@@ -136,11 +148,12 @@ class Game:
         self.start_room=False
         self.gameSound=pygame.mixer.Sound(GAME_SOUND)
         self.gameStartSound=pygame.mixer.Sound('./music/game_start.wav')
-        self.mafia_win_sound=pygame.mixer.Sound('./music/mafia_win.wav')
+        self.   mafia_win_sound=pygame.mixer.Sound('./music/mafia_win.wav')
         self.citizen_win_sound=pygame.mixer.Sound('./music/mafia_lose.wav')
 
 
-
+        self.masterfont=self.font.render('대빵',True,BLACK)
+        self.masterfont_rect=self.masterfont.get_rect()
         self.voting=False#투표 활성화
         self.voted=False#투표했는지
         self.inputbox=InputBox(WIDTH//2-80,HEIGHT-70,180,36,self.dm)
@@ -157,6 +170,7 @@ class Game:
         self.hitSound=[]
         for i in range(3):
             self.hitSound.append(pygame.mixer.Sound(soundDir+f'attack{i}.wav'))
+        self.master=False
     def stop(self):
         pygame.mixer.stop()
     def setStart(self):
@@ -180,18 +194,23 @@ class Game:
         self.start_room=False
         if self.room.victory:
             self.citizen_win_sound.play()
-            print('citizen victory')
         else:
             self.mafia_win_sound.play()
-            print('mafia victory')
     def draw(self): #화면에 그려주는 함수
         self.dm.screen.fill((255,255,255))
         self.dm.screen.blit(self.chatImage,self.chatImage_rect)
         if not self.start_room:
             self.dm.screen.blit(self.roomfont,self.roomfont_rect)
             self.dm.screen.blit(self.outRoomImage,self.outRoomImage_rect)
-            self.dm.screen.blit(self.startImage,self.startImage_rect)
             self.dm.screen.blit(self.resetImage,self.resetImage_rect)
+            if self.room.total_p_num==self.room.p_num:
+                if self.master:
+                    self.dm.screen.blit(self.startImage,self.startImage_rect)
+                self.pnumfont=self.font.render(f'인원: {self.room.p_num}/{self.room.total_p_num}',True,BLUE)
+            else:
+                self.pnumfont=self.font.render(f'인원: {self.room.p_num}/{self.room.total_p_num}',True,RED)
+            self.pnumfont_rect=self.pnumfont.get_rect(left=WIDTH-100,top=30)
+            self.dm.screen.blit(self.pnumfont,self.pnumfont_rect)
         self.canvas.draw()
         if self.chatActive:
             self.chat.draw()
@@ -218,6 +237,12 @@ class Game:
             else:#시민이면
                 self.dm.screen.blit(self.wordfont,self.wordfont_rect)
                 self.dm.screen.blit(self.citizenfont,self.citizenfont_rect)
+        if self.master:
+            self.masterfont_rect.center=(self.player.rect.centerx+16,self.player.rect.centery-8)
+            self.dm.screen.blit(self.masterfont,self.masterfont_rect)
+        elif self.users[self.room.master]!=None:
+            self.masterfont_rect.center=(self.users[self.room.master].rect.centerx+16,self.users[self.room.master].rect.centery-8)
+            self.dm.screen.blit(self.masterfont,self.masterfont_rect)
     def event(self):
         if self.voting and not self.voted:
             for event in pygame.event.get():
@@ -229,7 +254,13 @@ class Game:
                     exit()
                 self.inputbox.handle_event(event)
         elif self.voting and self.voted:
-            pass
+            for event in pygame.event.get():
+                if event.type== pygame.QUIT:
+                    pygame.mixer.music.stop()
+                    self.player.roomout_flag=True
+                    self.dm.net.send(self.player.getPacket(),self.dm.net.s)
+                    self.dm.game_running=False
+                    exit()
         else:
             for event in pygame.event.get():
                 if event.type== pygame.QUIT:
@@ -245,9 +276,9 @@ class Game:
                         self.dm.net.send(self.player.getPacket(),self.dm.net.s)#방을 나간다고 서버에 알려주고
                         self.dm.changeScene(Main(self.dm))#main scene으로 돌아감
                         return
-                    elif self.startImage_rect.collidepoint(event.pos) and not self.player.start_room:
+                    elif self.startImage_rect.collidepoint(event.pos) and not self.player.start_room and self.master and (self.room.total_p_num==self.room.p_num):
                         self.player.start_room=True
-                    elif self.resetImage_rect.collidepoint(event.pos) and not self.player.reset_room:
+                    elif self.resetImage_rect.collidepoint(event.pos) and not self.player.reset_room and self.master:
                         self.player.reset_room=True
                     elif self.chatImage_rect.collidepoint(event.pos):
                         self.chatActive=not self.chatActive
@@ -272,9 +303,15 @@ class Game:
     def update(self):
         self.cursor_rect.center=(self.canvas.rect.centerx+22,self.canvas.rect.centery-8)
         self.dm.net.send(self.player.getPacket(),self.dm.net.s)
-        self.room=self.dm.net.recv(self.dm.net.s)
+        temp=self.dm.net.recv(self.dm.net.s)
+        if temp is not None:
+            self.room=temp
         #방 패킷으로 넘어온 정보 저장
         self.voting=self.room.voting
+        if self.room.master==self.player.code:
+            self.master=True
+        else:
+            self.master=False
         if not self.voting:
             self.voted=False
         if self.room.end_flag and self.start_room:#난 게임중인데 서버에서 끝났다고 면
