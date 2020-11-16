@@ -1,7 +1,9 @@
 from network import Net
 from _thread import *
 from model import *
-addr=('localhost',5555)
+#addr=('localhost',5555)
+addr=('172.26.10.205',5556)
+
 rooms_lock=allocate_lock()
 class Server:
     def __init__(self,addr):
