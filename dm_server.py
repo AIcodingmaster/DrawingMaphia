@@ -1,8 +1,8 @@
 from network import Net
 from _thread import *
 from model import *
-#addr=('localhost',5555)
-addr=('172.26.10.205',5556)
+addr=('localhost',5555)
+#addr=('172.26.10.205',5556)
 
 rooms_lock=allocate_lock()
 class Server:
@@ -25,7 +25,7 @@ class Server:
     def code_find_room(self,code,c):
         print(code)
         for room in self.rooms:
-            rooms_lock.acquire()
+            rooms_lock.acquire() 
             if str(room.code)==code.strip() and not room.start_flag and room.total_p_num>room.p_num:
                 player_code=room.add_player()
                 rooms_lock.release()
@@ -79,8 +79,12 @@ class Server:
         while True:
             data=self.net.recv(c)
             if not data:#연결이 끊어졌다면 thread 탈출
+                #print('normal exit')
                 break
-            self.make_find_room(c,data)
+            r_data=self.make_find_room(c,data)
+            if type(r_data)==PlayerPacket:
+                #print("abnormal exit")
+                break
         self.net.close(c)
     def make_find_room(self,c,data):
         if data=="f4":
@@ -93,7 +97,9 @@ class Server:
         elif data=="m8":
             room=Room(8)
             self.make_room(room,c)
-        else:
+        elif type(data)!=PlayerPacket:
             self.code_find_room(data,c)
+        else:
+            return data
 server=Server(addr)
 server.run()

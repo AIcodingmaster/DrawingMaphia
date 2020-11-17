@@ -294,8 +294,13 @@ class Room:
                 self.room_lock.release()
                 return idx
         self.room_lock.release()
-    def remove_player(self,player):
+    def remove_player(self,player,temp_code):
         self.room_lock.acquire()
+        if player.code==None:
+            player.code=temp_code
+            print(f'{player.code} abnormal exit')
+        else:
+            print(f'{player.code} normal exit')
         if player.code in self.m_idx:
             self.m_idx.remove(player.code)
         if self.canvas_catched==player.code:
@@ -352,12 +357,13 @@ class Room:
         self.room_lock.release()
 
     def start_room(self,c,net):#게임 시작과 종료까지 실행되는 함수 return은 자기가 나올때 방에 남은 사람
+        temp_code=None
         while True:
             player_packet=net.recv(c)#playerPacket을 받음(paper, chat 주석임 현재)
             if not player_packet:
                 break
             if player_packet.roomout_flag:#방 나가기 클릭시
-                self.remove_player(player_packet)#플레이어 제거
+                self.remove_player(player_packet,temp_code)#플레이어 제거
                 return self.p_num#자신 나가고 나머지 인원 수 반환
             elif player_packet.canvas_catched:#캔버스 근처에서 잡는 시도
                 if (self.canvas_catched!=None and self.canvas_catched!=player_packet.code) or self.drawed[player_packet.code]:#잡은 사람이 있고 그게 자기가 아니면 or 자기가 그렸었다면
@@ -402,6 +408,7 @@ class Room:
                 self.room_lock.release()
             self.update(player_packet)
             packet=self.getPacket(player_packet)
+            temp_code=player_packet.code#비정상 종료시 코드 추적 위함
             net.send(packet,c)
     def get_code(self):
         for idx,can in enumerate(Room.room_code):

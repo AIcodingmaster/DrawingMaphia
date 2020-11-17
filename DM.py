@@ -24,8 +24,8 @@ class DM:
         self.game_running=False#방 화면
         self.code_running=False
         self.net=Net()
-        self.net.init_client(('15.165.162.81',5556))
-        #self.net.init_client(('localhost',5555))
+        #self.net.init_client(('15.165.162.81',5556))
+        self.net.init_client(('localhost',5555))
         pygame.init()
         self.scene=Main(self)
         pygame.mixer.init() 

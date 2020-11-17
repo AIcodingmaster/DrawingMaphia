@@ -278,7 +278,7 @@ class Game:
                         return
                     elif self.startImage_rect.collidepoint(event.pos) and not self.player.start_room and self.master and (self.room.total_p_num==self.room.p_num):
                         self.player.start_room=True
-                    elif self.resetImage_rect.collidepoint(event.pos) and not self.player.reset_room and self.master:
+                    elif self.resetImage_rect.collidepoint(event.pos) and not self.player.reset_room:
                         self.player.reset_room=True
                     elif self.chatImage_rect.collidepoint(event.pos):
                         self.chatActive=not self.chatActive
