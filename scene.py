@@ -326,7 +326,7 @@ class Game:
                         self.dm.net.send(self.player.getPacket(),self.dm.net.s)#방을 나간다고 서버에 알려주고
                         self.dm.changeScene(Main(self.dm))#main scene으로 돌아감
                         return
-                    elif self.startImage_rect.collidepoint(event.pos) and not self.player.start_room and self.master and self.endingcool==0:
+                    elif self.startImage_rect.collidepoint(event.pos) and not self.player.start_room and self.master and self.endingcool==0 and self.room.p_num and self.room.total_p_num:
                         self.player.start_room=True
                     elif self.resetImage_rect.collidepoint(event.pos) and not self.player.reset_room:
                         self.player.reset_room=True
