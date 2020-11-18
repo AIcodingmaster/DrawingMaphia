@@ -169,6 +169,7 @@ class Canvas(pygame.sprite.Sprite):
         self.dm.screen.blit(self.image,self.rect.center)
 class RoomPacket:
     def __init__(self):
+        self.i=0#로테이션 여부
         self.code=None
         self.total_p_num=None#전체 인원수
         self.total_m_num=None#전체 마피아 수
@@ -191,6 +192,7 @@ class RoomPacket:
 class Room:
     room_code=[True for i in range(ROOM_NUM)]#room assign
     def __init__(self,total_p_num):
+        self.i=0#몇번 로테이션 했는지
         self.master=0#방장
         self.canvas_catched=None#잡은 사람 player_code가 들어감
         self.room_lock=allocate_lock()
@@ -226,7 +228,7 @@ class Room:
                     self.words.append(line)
         self.m_idx=[]#마피아 idx
     def ending(self):
-        #self.room_lock.acquire()
+        self.i=0
         self.canvas_catched=None#잡은 사람 player_code가 들어감
         self.paper=[]#종이 리스트
         self.m_idx=[]#마피아 플레이어 index
@@ -234,14 +236,13 @@ class Room:
         self.reseted=[False]*8#player가 브로드 캐스트를 해야 하는지 여부
         self.started=[False]*8
         self.vote_content=['']*self.total_p_num
-        self.word=None#제시어
         self.m_idx=[]#마피아 idx
-        #self.room_lock.acquire()
 
     def getWord(self):
         return list(map(lambda x:x.strip(),self.words))[random.randint(0,len(self.words)-1)]
     def getPacket(self,playerPacket=None):
         room_packet=RoomPacket()
+        room_packet.i=self.i
         room_packet.code=self.code
         room_packet.total_p_num=self.total_p_num
         room_packet.total_m_num=self.total_m_num
@@ -255,6 +256,7 @@ class Room:
         room_packet.victory=self.victory#default false(마피아 승리)
         room_packet.end_flag=self.end_flag
         room_packet.who_catched=self.canvas_catched
+        room_packet.word=self.word#제시어를 보냄
         self.room_lock.acquire()
         if playerPacket!=None:#playerPacket 파라미터가 들어왔으면 , 메뉴 화면에선 playerpacekt이아님!!
             if self.end_flag:#종료 flag라면
@@ -264,8 +266,6 @@ class Room:
                     self.ended=[False]*self.total_p_num
             elif self.start_flag:
                 room_packet.start_flag=True#시작한다고 or 게임중
-                if playerPacket.code not in self.m_idx:#마피아가 아니면
-                    room_packet.word=self.word#제시어를 보냄
                 room_packet.voting=self.voting
                 if not self.started[playerPacket.code]:#만약 시작한다고 알리지 않은 플레이어는
                     self.started[playerPacket.code]=True#이번에 보낼꺼니까
@@ -335,6 +335,7 @@ class Room:
                 #print(f'voted : {self.voted}',end='\n')
                 if False not in [x for idx,x in enumerate(self.voted) if not self.player_code[idx]]:
                     #모두가 투표 했다면
+                    self.i+=1#로테이션 한번 돔
                     self.voting=False#투표 종료
                     agree=True#마피아 한명이라도 걸리면 끝남.
                     for content in [self.vote_content[idx] for idx,x in enumerate(self.player_code) if (not x and idx not in self.m_idx)]:
