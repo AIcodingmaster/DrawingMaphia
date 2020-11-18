@@ -5,7 +5,7 @@
 - Language : Python(Pygame)
 - Server : AWS(LightSail)
 - DM.py 실행하면 게임 실행 가능
-- 제시어를 받지 못한 마피아를 찾는 게임  
+- 제시어를 받지 못한 그림 마피아를 찾는 멀티플레이 게임  
 #
 #
 #
