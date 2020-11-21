@@ -34,4 +34,4 @@
 #
 #
 #
-## COPYRIGHT KHJ
+## COPYRIGHT KHJ(플레이 원할시 exe폴더만 다운로드 하여 실행하면 됨)
